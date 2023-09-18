@@ -1,6 +1,0 @@
----
-- name: Install MicroK8s
-  hosts: "all"
-  become: true
-  roles:
-    - install_microk8s

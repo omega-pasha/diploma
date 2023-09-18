@@ -1,0 +1,6 @@
+---
+- name: Install k8s from kubeadm
+  hosts: "all"
+  become: true
+  roles:
+    - install_k8s_kubeadm

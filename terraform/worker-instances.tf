@@ -31,7 +31,7 @@ resource "yandex_compute_instance_group" "worker_nodes_group" {
     }
 
     metadata = {
-      user-data = "root:${file("~/.ssh/id_ed25519.pub")}"
+      user-data = "${file("./meta.txt")}"
     }
   }
 

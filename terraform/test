@@ -1,1 +1,1 @@
-terraform output ansible_inventory | sed '/<<EOT/d' | sed '/EOT/d' > ../kubespray/inventory/diploma_cluster/inventory.ini
+terraform output ansible_inventory | sed '/<<EOT/d' | sed '/EOT/d' > ../ansible/hosts

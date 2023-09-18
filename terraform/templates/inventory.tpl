@@ -1,29 +1,12 @@
-[all]
+[masters]
 %{ for index, ip in master_nodes ~}
-master${index+1} ansible_host=${ip}
+master${index+1} ansible_host=${ip} ansible_user=root
 %{ endfor ~}
+
+[workers]
 %{ for index, ip in worker_nodes ~}
-worker${index+1} ansible_host=${ip}
+worker${index+1} ansible_host=${ip} ansible_user=root
 %{ endfor ~}
 
-[kube_control_plane]
-%{ for index, ip in master_nodes ~}
-master${index+1}
-%{ endfor ~}
-
-[etcd]
-%{ for index, ip in master_nodes ~}
-master${index+1}
-%{ endfor ~}
-
-[kube_node]
-%{ for index, ip in worker_nodes ~}
-worker${index+1}
-%{ endfor ~}
-
-[calico_rr]
-
-[k8s_cluster:children]
-kube_control_plane
-kube_node
-calico_rr
+[all:vars]
+ansible_python_interpreter=/usr/bin/python3

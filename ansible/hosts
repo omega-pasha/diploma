@@ -1,0 +1,9 @@
+[masters]
+master1 ansible_host=158.160.9.164 ansible_user=pavelpomorcev
+
+[workers]
+worker1 ansible_host=158.160.7.92 ansible_user=pavelpomorcev
+worker2 ansible_host=51.250.40.87 ansible_user=pavelpomorcev
+
+[all:vars]
+ansible_python_interpreter=/usr/bin/python3
