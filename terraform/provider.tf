@@ -11,15 +11,11 @@ terraform {
     }
   }
 
-  backend "s3" {
-    endpoint = "storage.yandexcloud.net"
-    bucket   = "diploma-tf-backend"
-    region   = "ru-central1"
-    key      = "main/terraform.tfstate"
+  cloud {
+    organization = "netology_diploma"
 
-    skip_region_validation      = true
-    skip_credentials_validation = true
-
+    workspaces {
+      name = "stage"
+    }
   }
-
 }

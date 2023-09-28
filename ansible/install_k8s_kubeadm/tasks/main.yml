@@ -1,13 +1,84 @@
 ---
-- name: Install packages
+- name: Disable swap
+  shell: swapoff -a
+
+- name: Turn off swap in fstab
+  replace:
+    path: /etc/fstab
+    regexp: '^ ( [^#].?\\sswap\\s+sw\\s+.*)$'
+    replace: '# \\1'
+
+- name: Create file for modules load
+  file:
+    path: /etc/modules-load.d/k8s.conf
+    state: touch
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Add modules k8s
+  lineinfile:
+      path: /etc/modules-load.d/k8s.conf
+      line: "{{ item }}"
+  loop:
+    - br_netfilter
+    - overlay
+
+- name: Add modules
+  modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - br_netfilter
+    - overlay
+
+- name: Set sysctl options
+  sysctl:
+    name: "{{ item }}"
+    value: '1'
+    state: present
+    reload: yes
+    sysctl_file: /etc/sysctl.d/k8s.conf
+  loop:
+    - net.bridge.bridge-nf-call-ip6tables
+    - net.bridge.bridge-nf-call-iptables
+
+- name: Check docker GPG key exist
+  stat:
+    path: /etc/apt/keyrings/docker.gpg
+  register: docker_key_file
+
+- name: Download docker GPG key
+  shell: >
+        curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  when: not docker_key_file.stat.exists
+
+- name: Make source list docker
+  shell: >
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable" |
+        sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+  when: not docker_key_file.stat.exists
+
+- name: Install packages docker
   apt:
-    name:
-      - apt-transport-https
-      - ca-certificates
-      - curl
-      - gnupg
+    name: containerd.io
     state: present
     update_cache: yes
+
+- name: Copy config containerd
+  copy:
+    src: config.toml
+    dest: /etc/containerd/
+    remote_src: no
+    mode: 0644
+    owner: root
+    group: root
+
+- name: Restart containerd service
+  systemd:
+    name: containerd
+    enabled: yes
+    state: restarted
 
 - name: Create directory
   file:
@@ -30,38 +101,6 @@
     echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main' | sudo tee /etc/apt/sources.list.d/kubernetes.list
   when: not k8s_key_file.stat.exists
 
-- name: Check docker GPG key exist
-  stat:
-    path: /etc/apt/keyrings/docker.gpg
-  register: docker_key_file
-
-- name: Download docker GPG key
-  shell: >
-    curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-  when: not docker_key_file.stat.exists
-
-- name: Make source list docker
-  shell: >
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable" |
-    sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-  when: not docker_key_file.stat.exists
-
-- name: Install packages docker
-  apt:
-    name: containerd.io
-    state: present
-    update_cache: yes
-
-- name: Copy config containerd
-  copy:
-    src: config.toml
-    dest: /etc/containerd/
-
-- name: Restart containerd service
-  service:
-    name: containerd
-    state: restarted
-
 - name: Install packages k8s
   apt:
     name:
@@ -69,9 +108,10 @@
       - kubeadm
       - kubectl
     state: present
+    update_cache: yes
 
 - name: Hold kubelet, kubeadm, and kubectl packages
-  ansible.builtin.dpkg_selections:
+  dpkg_selections:
     name: "{{ item }}"
     selection: hold
   loop:
@@ -79,52 +119,62 @@
     - kubeadm
     - kubectl
 
-- name: Load overlay and br_netfilter modules
-  shell: "modprobe {{ item }}"
-  loop:
-    - "overlay"
-    - "br_netfilter"
+- name: Masters settings
+  block:
+    - name: Init master
+      shell: kubeadm init --pod-network-cidr=10.244.0.0/16
+      ignore_errors: true
 
-- name: Apply sysctl settings
-  sysctl:
-    name: "{{ item }}"
-    value: 1
-  loop:
-    - "net.bridge.bridge-nf-call-iptables"
-    - "net.ipv4.ip_forward"
+    - name: Set KUBECONFIG env
+      lineinfile:
+        path: /etc/environment
+        line: export KUBECONFIG=/etc/kubernetes/admin.conf
 
-- name: Disable swap
-  shell: |
-    swapoff -a
+    - name: Install CNI
+      shell: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
 
-- name: Turn off swap in fstab
-  replace:
-    path: /etc/fstab
-    regexp: '^ ( [^#].?\\sswap\\s+sw\\s+.*)$'
-    replace: '# \\1'
+    - name: Get join command
+      shell: kubeadm token create --print-join-command
+      register: join_command_raw
 
-# - name: initialize the cluster
-#   shell: kubeadm init --pod-network-cidr=10.244.0.0/16 >> {{ ansible_user_dir }}/cluster_initialized.txt
-#   when: "'masters' in group_names"
+    - name: Open ports on masters
+      iptables:
+        action: insert
+        rule_num: 1
+        chain: INPUT
+        protocol: tcp
+        destination_port: "{{ item }}"
+        jump: ACCEPT
+      loop:
+        - "6443"
+        - "2379:2380"
+        - "10250:10252"
 
-# - name: create .kube directory
-#   become_user: "{{ ansible_user }}"
-#   file:
-#     path: "{{ ansible_user_dir }}/.kube"
-#     state: directory
-#     mode: 0755
-#   when: "'masters' in group_names"
-
-- name: get join command
-  shell: kubeadm token create --print-join-command
-  register: join_command_raw
   when: "'masters' in group_names"
 
-- name: set join command
-  set_fact:
-    join_command: "{{ join_command_raw.stdout_lines[0] }}"
-  when: "'masters' in group_names"
+- name: Workers Settings
+  block:
+    - name: Open ports on workers
+      iptables:
+        action: insert
+        rule_num: 1
+        chain: INPUT
+        protocol: tcp
+        destination_port: "{{ item }}"
+        jump: ACCEPT
+      loop:
+        - "10250"
+        - "30000:32767"
 
-- name: join cluster
-  shell: "{{ hostvars['masters'].join_command }}"
+    - name: Init workers
+      shell: "{{ hostvars[groups['masters'].0].join_command_raw.stdout }}" 
+      ignore_errors: true
   when: "'workers' in group_names"
+
+- name: Install iptables-persistent
+  package:
+    name: iptables-persistent
+    state: present
+
+- name: Save firewall rule
+  shell: netfilter-persistent save

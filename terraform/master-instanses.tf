@@ -1,11 +1,3 @@
-# locals {
-#   masters_subnet = {
-#     "ru-central1-a" = yandex_vpc_subnet.private_subnet_a.id,
-#     "ru-central1-b" = yandex_vpc_subnet.private_subnet_b.id,
-#     "ru-central1-c" = yandex_vpc_subnet.private_subnet_c.id
-#   }
-# }
-
 resource "yandex_compute_instance_group" "master_nodes_group" {
   name                = "master-node-group-${terraform.workspace}"
   folder_id           = var.folder_id

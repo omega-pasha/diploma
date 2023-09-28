@@ -3,4 +3,4 @@
   hosts: "all"
   become: true
   roles:
-    - install_k8s_kubeadm
+    - role: install_k8s_kubeadm
