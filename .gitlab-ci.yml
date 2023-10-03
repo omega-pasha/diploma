@@ -1,5 +1,6 @@
 stages:
   - build
+  - deploy
 
 build:
   stage: build
@@ -7,5 +8,13 @@ build:
     - docker login -u "$REGISTRY_USER" -p "$REGISTRY_PASSWORD" "$REGISTRY"
     - docker build -t $REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA ./docker
     - docker push $REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+  tags:
+    - pomortsev
+
+deploy:
+  stage: deploy
+  script:
+    - for i in $(ls *.yaml); do echo -e "\n---" && cat $i; done > config.yaml
+    - kubectl apply -f config.yaml
   tags:
     - pomortsev
