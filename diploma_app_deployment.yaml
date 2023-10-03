@@ -16,4 +16,4 @@ spec:
     spec:
       containers:
         - name: diploma-app-container
-          image: cr.yandex/crp986md7e3i07iq7s3a/diploma-nginx:1.0.1
+          image: pomortsevpavel/diploma:cc75e0e7
