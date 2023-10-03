@@ -5,7 +5,7 @@ build:
   stage: build
   script:
     - docker login -u "$REGISTRY_USER" -p "$REGISTRY_PASSWORD" "$REGISTRY"
-    - docker build -t $REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA ./docker.
+    - docker build -t $REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA ./docker
     - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
   tags:
     - pomortsev
