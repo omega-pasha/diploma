@@ -1,0 +1,13 @@
+stages:
+  - build
+
+build:
+  stage: build
+  services:
+    - docker:dind
+  script:
+    - docker login -u "$REGISTRY_USER" -p "$REGISTRY_PASSWORD" "$REGISTRY"
+    - docker build -t $REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG ./docker.
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+  tags:
+    - pomortsev
