@@ -16,4 +16,4 @@ spec:
     spec:
       containers:
         - name: diploma-app-container
-          image: pomortsevpavel/diploma:cc75e0e7
+          image: $DOCKER_IMAGE_NAME
